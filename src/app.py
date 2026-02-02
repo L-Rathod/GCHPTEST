@@ -16,8 +16,17 @@ app = FastAPI(title="Mergington High School API",
 
 # Mount the static files directory
 current_dir = Path(__file__).parent
-app.mount("/static", StaticFiles(directory=os.path.join(Path(__file__).parent,
-          "static")), name="static")
+static_dir = os.path.join(Path(__file__).parent, "static")
+# Ensure the static directory exists (fixes startup when missing)
+if not static_dir.exists():
+    static_dir.mkdir(parents=True, exist_ok=True)
+    # Create a minimal placeholder index.html so the server can start reliably.
+    (static_dir / "index.html").write_text(
+        "<!doctype html><html><head><meta charset='utf-8'><title>Mergington High School</title></head>"
+        "<body><h1>Mergington High School</h1><p>Add static files to src/static/</p></body></html>"
+    )
+
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # In-memory activity database
 activities = {

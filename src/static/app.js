@@ -84,3 +84,97 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialize app
   fetchActivities();
 });
+
+async function fetchActivities() {
+  try {
+    const res = await fetch("/activities");
+    if (!res.ok) throw new Error("Failed to load activities");
+    const data = await res.json();
+    renderActivities(data);
+  } catch (err) {
+    document.getElementById("activities").innerHTML = `<p class="msg">Error loading activities.</p>`;
+    console.error(err);
+  }
+}
+
+function renderActivities(activities) {
+  const container = document.getElementById("activities");
+  container.innerHTML = "";
+  Object.entries(activities).forEach(([name, info]) => {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const title = document.createElement("h2");
+    title.textContent = name;
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = info.schedule || "";
+
+    const desc = document.createElement("div");
+    desc.className = "desc";
+    desc.textContent = info.description || "";
+
+    // Participants list
+    const pTitle = document.createElement("strong");
+    pTitle.textContent = "Participants:";
+
+    const list = document.createElement("ul");
+    list.className = "participants";
+    (info.participants || []).forEach(p => {
+      const li = document.createElement("li");
+      li.textContent = p;
+      list.appendChild(li);
+    });
+
+    // Signup form
+    const formRow = document.createElement("div");
+    formRow.className = "form-row";
+
+    const input = document.createElement("input");
+    input.type = "email";
+    input.placeholder = "you@school.edu";
+    input.required = true;
+
+    const btn = document.createElement("button");
+    btn.textContent = "Sign up";
+
+    formRow.appendChild(input);
+    formRow.appendChild(btn);
+
+    const msg = document.createElement("div");
+    msg.className = "msg";
+
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const email = input.value.trim();
+      if (!email) { msg.textContent = "Please enter an email."; return; }
+      btn.disabled = true;
+      msg.textContent = "Signing up...";
+      try {
+        const url = `/activities/${encodeURIComponent(name)}/signup?email=${encodeURIComponent(email)}`;
+        const res = await fetch(url, {method: "POST"});
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.detail || body.message || "Signup failed");
+        msg.textContent = body.message || "Signed up!";
+        input.value = "";
+        // refresh activities to show updated participants
+        await fetchActivities();
+      } catch (err) {
+        msg.textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    card.appendChild(title);
+    card.appendChild(meta);
+    card.appendChild(desc);
+    card.appendChild(pTitle);
+    card.appendChild(list);
+    card.appendChild(formRow);
+    card.appendChild(msg);
+
+    container.appendChild(card);
+  });
+}
