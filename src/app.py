@@ -16,8 +16,17 @@ app = FastAPI(title="Mergington High School API",
 
 # Mount the static files directory
 current_dir = Path(__file__).parent
-app.mount("/static", StaticFiles(directory=os.path.join(Path(__file__).parent,
-          "static")), name="static")
+static_dir = Path(os.path.join(os.path.dirname(__file__), "static"))
+# Ensure the static directory exists (fixes startup when missing)
+if not static_dir.exists():
+    static_dir.mkdir(parents=True, exist_ok=True)
+    # Create a minimal placeholder index.html so the server can start reliably.
+    (static_dir / "index.html").write_text(
+        "<!doctype html><html><head><meta charset='utf-8'><title>Mergington High School</title></head>"
+        "<body><h1>Mergington High School</h1><p>Add static files to src/static/</p></body></html>"
+    )
+
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # In-memory activity database
 activities = {
@@ -39,6 +48,43 @@ activities = {
         "max_participants": 30,
         "participants": ["john@mergington.edu", "olivia@mergington.edu"]
     }
+    ,
+        "Basketball": {
+            "description": "Team sport focusing on basketball skills and competitive play",
+            "schedule": "Mondays and Wednesdays, 4:00 PM - 5:30 PM",
+            "max_participants": 15,
+            "participants": ["alex@mergington.edu"]
+        },
+        "Tennis Club": {
+            "description": "Learn tennis techniques and participate in friendly matches",
+            "schedule": "Saturdays, 10:00 AM - 12:00 PM",
+            "max_participants": 8,
+            "participants": ["james@mergington.edu"]
+        },
+        "Drama Club": {
+            "description": "Perform in theatrical productions and develop acting skills",
+            "schedule": "Tuesdays and Thursdays, 4:30 PM - 6:00 PM",
+            "max_participants": 25,
+            "participants": ["grace@mergington.edu", "lucas@mergington.edu"]
+        },
+        "Art Studio": {
+            "description": "Explore painting, drawing, and sculpture techniques",
+            "schedule": "Wednesdays, 3:30 PM - 5:00 PM",
+            "max_participants": 18,
+            "participants": ["maya@mergington.edu"]
+        },
+        "Debate Team": {
+            "description": "Develop argumentation and public speaking skills through competitive debate",
+            "schedule": "Mondays and Fridays, 4:00 PM - 5:30 PM",
+            "max_participants": 12,
+            "participants": ["noah@mergington.edu", "ava@mergington.edu"]
+        },
+        "Science Club": {
+            "description": "Conduct experiments and explore scientific concepts through hands-on projects",
+            "schedule": "Thursdays, 4:00 PM - 5:30 PM",
+            "max_participants": 16,
+            "participants": ["sarah@mergington.edu"]
+        }
 }
 
 
@@ -62,6 +108,36 @@ def signup_for_activity(activity_name: str, email: str):
     # Get the specific activity
     activity = activities[activity_name]
 
+    # Validate and normalize email to avoid duplicates (case-insensitive)
+    normalized = email.strip().lower()
+    if normalized in [p.strip().lower() for p in activity["participants"]]:
+        # match tests expecting 409 for duplicates
+        raise HTTPException(status_code=409, detail="Participant already registered")
+
+    # Optional: check capacity if defined
+    max_participants = activity.get("max_participants")
+    if isinstance(max_participants, int) and len(activity["participants"]) >= max_participants:
+        raise HTTPException(status_code=400, detail="Activity is full")
+
     # Add student
     activity["participants"].append(email)
     return {"message": f"Signed up {email} for {activity_name}"}
+
+
+@app.delete("/activities/{activity_name}/participants")
+def unregister_from_activity(activity_name: str, email: str):
+    """Unregister a student from an activity"""
+    # Validate activity exists
+    if activity_name not in activities:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    # Get the specific activity
+    activity = activities[activity_name]
+
+    # Ensure participant exists
+    if email not in activity["participants"]:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    # Remove student
+    activity["participants"].remove(email)
+    return {"message": f"Unregistered {email} from {activity_name}"}
