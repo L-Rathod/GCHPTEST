@@ -16,7 +16,7 @@ app = FastAPI(title="Mergington High School API",
 
 # Mount the static files directory
 current_dir = Path(__file__).parent
-static_dir = os.path.join(Path(__file__).parent, "static")
+static_dir = Path(os.path.join(os.path.dirname(__file__), "static"))
 # Ensure the static directory exists (fixes startup when missing)
 if not static_dir.exists():
     static_dir.mkdir(parents=True, exist_ok=True)
