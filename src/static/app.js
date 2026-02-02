@@ -18,11 +18,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message and existing UI
       activitiesList.innerHTML = "";
+
       // Reset select and add default placeholder
       activitySelect.innerHTML = "";
       const defaultOption = document.createElement("option");
       defaultOption.value = "";
-      defaultOption.textContent = "Select an activity";
+      defaultOption.textContent = "-- Select an activity --";
       defaultOption.disabled = true;
       defaultOption.selected = true;
       activitySelect.appendChild(defaultOption);
@@ -41,6 +42,12 @@ document.addEventListener("DOMContentLoaded", () => {
             <p>${details.description}</p>
             <p><strong>Schedule:</strong> ${details.schedule}</p>
             <p><strong>Availability:</strong> ${spotsLeft > 0 ? spotsLeft + " spots left" : "Full"}</p>
+            <div class="participants-section">
+              <h5>Participants:</h5>
+              <ul class="participants-list">
+                ${details.participants.map(p => `<li class="participant-item"><span class="participant-email">${p}</span><button class="delete-btn" data-activity="${name}" data-email="${p}" aria-label="Remove ${p}">✖</button></li>`).join('')}
+              </ul>
+            </div>
           `;
 
           if (spotsLeft <= 0) {
@@ -57,6 +64,37 @@ document.addEventListener("DOMContentLoaded", () => {
             option.disabled = true;
           }
           activitySelect.appendChild(option);
+
+          // Attach delete handlers
+          activityCard.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const email = btn.getAttribute('data-email');
+              const activityName = btn.getAttribute('data-activity');
+              try {
+                const res = await fetch(`/activities/${encodeURIComponent(activityName)}/participants?email=${encodeURIComponent(email)}`, { method: 'DELETE' });
+                const result = await res.json();
+                if (res.ok) {
+                  messageDiv.textContent = result.message;
+                  messageDiv.className = 'success';
+                  // Disable the button while refreshing
+                  btn.disabled = true;
+                  await fetchActivities();
+                  btn.disabled = false;
+                } else {
+                  messageDiv.textContent = result.detail || 'Failed to unregister';
+                  messageDiv.className = 'error';
+                }
+                messageDiv.classList.remove('hidden');
+                setTimeout(()=> messageDiv.classList.add('hidden'), 5000);
+              } catch (err) {
+                console.error(err);
+                messageDiv.textContent = 'Failed to unregister. Please try again.';
+                messageDiv.className = 'error';
+                messageDiv.classList.remove('hidden');
+                setTimeout(()=> messageDiv.classList.add('hidden'), 5000);
+              }
+            });
+          });
         });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
@@ -83,8 +121,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // Simple guard
+    if (!email || !activity) return;
+
     try {
-      // Disable submit while request is in-flight
+      // Prevent double submits
       if (submitButton) submitButton.disabled = true;
 
       const response = await fetch(
@@ -110,8 +151,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.classList.remove("error");
         messageDiv.classList.add("success");
         signupForm.reset();
-        // Refresh activities to update availability
-        fetchActivities();
+        // Wait for the refreshed activities to finish rendering
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || result.message || "An error occurred";
         messageDiv.classList.remove("success");
